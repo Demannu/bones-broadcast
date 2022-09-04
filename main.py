@@ -1,5 +1,6 @@
 """Module for displaying raw MJPG USB input"""
-from typing import List
+from collections import deque
+from typing import Dict, List
 import cv2
 import datetime
 
@@ -8,30 +9,19 @@ class FPS:
     """Class for keeping track of FPS"""
 
     def __init__(self) -> None:
-        self._start = None
-        self._end = None
-        self._numFrames = 0
-
-    def start(self) -> "FPS":
-        """Set start time to now"""
-        self._start = datetime.datetime.now()
-        return self
-
-    def stop(self) -> "FPS":
-        """Set stop time to now"""
-        self._end = datetime.datetime.now()
-        return self
+        self._frames = deque()
 
     def update(self) -> None:
         """Increase number of frames by 1"""
-        self._numFrames += 1
+        now: datetime = datetime.datetime.now()
+        while self._frames and (now - self._frames[0]) > datetime.timedelta(seconds=5):
+            self._frames.popleft()
+
+        self._frames.append(now)
 
     def fps(self) -> str:
         """Returns a string representing the current FPS"""
-        delta_t = (datetime.datetime.now() - self._start).total_seconds()
-        if delta_t == 0:
-            delta_t = 0.1
-        return str(int(self._numFrames / delta_t))
+        return str(int(len(self._frames) / 5))
 
     def render_fps(self, frame) -> List:
         """Adds FPS text to frame"""
