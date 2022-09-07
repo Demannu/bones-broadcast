@@ -1,42 +1,85 @@
 """Module for displaying raw MJPG USB input"""
+import datetime
 from collections import deque
 from threading import Thread
-from typing import Dict, List
+from tkinter import Frame, Label, Menu, Tk, Toplevel
+from typing import List
+
 import cv2
-import datetime
-from PIL import Image, ImageTk
 import pandas as pd
-from tkinter import Menu, Tk, Label, Frame
-from tkinter import ttk
+from PIL import Image, ImageTk
 
 
 class GUI:
+    """Class for the tkinter GUI"""
+
     def __init__(self) -> None:
+        # Main Window
         self.root = Tk()
+        self.root.geometry("800x600")
+
+        # Menu Root
+        self.menu = Menu(self.root)
+
+        # File Menu
+        self.filemenu = Menu(self.menu, tearoff=0)
+        self.filemenu.add_command(label="Settings", command=self.settings)
+        self.filemenu.add_separator()
+        self.filemenu.add_command(label="Exit", command=self.quit)
+
+        self.menu.add_cascade(label="File", menu=self.filemenu)
+
+        # Output Menu
+        self.outputmenu = Menu(self.menu, tearoff=0)
+        self.outputmenu.add_command(label="Start", command=self.start_video)
+        self.outputmenu.add_command(label="Stop", command=self.stop_video)
+        self.outputmenu.add_command(label="Raw Output", command=self.raw_video)
+
+        self.menu.add_cascade(label="Output", menu=self.outputmenu)
+
+        self.root.config(menu=self.menu)
+
+        # Display Frame
         self.display = Frame(self.root, bg="white")
-        self.menu = Menu(self.display)
-        self.menu.add_command(label="Start", command=self.start_video)
-        self.menu.add_command(label="Stop", command=self.stop_video)
-        self.menu.add_command(
-            label="Raw Output (press q to quit)", command=self.raw_video
-        )
         self.display.grid()
+
+        # Embedded video frame
         self.video = Label(self.display)
         self.video.grid()
-        self.root.config(menu=self.menu)
+
+        # Capture card output
+        self.input = VideoStream(src=0, container=self.video)
 
         self.root.mainloop()
 
     def start_video(self):
-        self.input = VideoStream(src=0, container=self.video)
+        """Start video output inside tkinter window"""
+        self.input.container = self.video
+        self.root.geometry(f"{int(self.input.stream.w)}x{int(self.input.stream.h)}")
         Thread(target=self.input.start())
 
     def stop_video(self):
+        """Stop the video output"""
+        self.root.geometry("800x600")
+        self.video.destroy()
         self.input.stopped = True
 
     def raw_video(self):
-        self.input = VideoStream(src=0)
+        """Stream the raw output to a cv2 window"""
+        self.input.container = None
         Thread(target=self.input.start())
+
+    def quit(self):
+        """Exit the program"""
+        cv2.destroyAllWindows()
+        self.root.destroy()
+
+    def settings(self):
+        """Settings window"""
+        new_window = Toplevel(self.root)
+        new_window.title("Settings")
+        new_window.geometry("400x300")
+        Label(new_window, text="Test window").pack()
 
 
 class FPS:
@@ -72,7 +115,7 @@ class FPS:
         return frame
 
 
-class VideoStream:
+class VideoStream:  # pylint: disable=too-many-arguments
     """Class for streaming capture card output"""
 
     def __init__(
@@ -101,7 +144,7 @@ class VideoStream:
         self.stopped = True
 
     def start(self):
-        print("starting")
+        """Start the capture loop"""
         self.stopped = False
         self.loop()
 
@@ -148,7 +191,9 @@ class VideoStream:
             self.container.after(1, self.loop)
 
 
-class CaptureDevice:
+class CaptureDevice:  # pylint: disable=too-many-instance-attributes, invalid-name
+    """Class for the capture interface"""
+
     def __init__(
         self,
         src: int = 0,
@@ -171,15 +216,16 @@ class CaptureDevice:
         self.resolutions = []
         self.aspect_ratio = set()
 
-        # self.get_compatible_resolutions()
-
     def get_common_resolutions(self):
+        """Fetch list of common resolutions from wikipedia"""
         url = "https://en.wikipedia.org/wiki/List_of_common_resolutions"
         table = pd.read_html(url)[0]
         table.columns = table.columns.droplevel()
         return table
 
     def calculate_aspect_ratio(self, w, h):
+        """Calculate and add aspect ratio to class"""
+
         def gcd(a, b):
             return a if b == 0 else gcd(b, a % b)
 
@@ -190,6 +236,7 @@ class CaptureDevice:
         self.aspect_ratio.add(f"{x}:{y}")
 
     def check_resolution(self, w, h) -> None:
+        """Check to see if provided resolution is compatible with device"""
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, w)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
 
@@ -210,9 +257,11 @@ class CaptureDevice:
             self.resolutions.append([w, h])
 
     def auto_detect(self):
+        """Run the resolution detection function in a thread"""
         Thread(target=self.get_compatible_resolutions)
 
     def get_compatible_resolutions(self):
+        """Return a list of compatible resolutions"""
 
         common_res = self.get_common_resolutions()
         data = [
@@ -239,6 +288,7 @@ class CaptureDevice:
             self.check_resolution(row[0], row[1])
 
     def set_resolution(self, w, h):
+        """Set resolution of the capture device"""
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, w)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
 
@@ -246,14 +296,14 @@ class CaptureDevice:
         self.h = self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
 
     def set_fps(self, fps: int):
+        """Set FPS of the capture device"""
         self.cap.set(cv2.CAP_PROP_FPS, fps)
         self.input_fps = self.cap.get(cv2.CAP_PROP_FPS)
 
     def set_codec(self):
+        """Set the codec of the capture device"""
         self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc("M", "J", "P", "G"))
 
 
-# CaptureDevice()
-# VideoStream(src=0)
-GUI()
-cv2.destroyAllWindows()
+if __name__ == "__main__":
+    GUI()
