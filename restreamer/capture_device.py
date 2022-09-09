@@ -1,5 +1,6 @@
 import cv2
 from threading import Thread
+import pandas as pd
 
 
 class CaptureDevice:  # pylint: disable=too-many-instance-attributes, invalid-name

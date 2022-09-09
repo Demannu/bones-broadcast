@@ -36,16 +36,19 @@ class GUI:
         self.display.grid()
 
         # Video Input Device Configuration
-        video_input_devices = ["Run auto detect"]
+        self.video_input_devices = ["Run auto detect"]
         vid_variable = StringVar(self.display)
 
-        vid_combobox = Combobox(self.display, values=video_input_devices).pack()
+        vid_combobox = Combobox(self.display, values=self.video_input_devices).pack()
 
         # Video Resolution Configuration
-        video_resolutions = []
+        self.video_resolutions = []
         vr_variable = StringVar(self.display)
 
-        vr_combobox = Combobox(self.display, values=video_resolutions).pack()
+        self.vr_combobox: Combobox = Combobox(
+            self.display, values=self.video_resolutions
+        )
+        self.vr_combobox.pack()
 
         # Auto-detect: Input resolution
         auto_video_resolution = Button(
@@ -64,19 +67,26 @@ class GUI:
         self.root.mainloop()
 
     def auto_detect_video_resolutions(self):
-        pass
+        self.video_input.stream.get_compatible_resolutions()
+        self.video_resolutions = self.video_input.stream.resolutions
+        print(self.video_resolutions)
+        self.vr_combobox.values = self.video_resolutions
+        self.vr_combobox.destroy()
+        self.vr_combobox = Combobox(self.display, values=self.video_resolutions)
+        self.vr_combobox.pack()
 
     def raw_video(self):
         """Stream the raw output to a cv2 window"""
         self.display.master.withdraw()
         self.audio_thread: Thread = Thread(target=self.audio_input.start).start()
         self.video_thread: Thread = Thread(target=self.video_input.start).start()
-        while not self.video_input.stopped:
+        while not self.video_input.stopped or not self.audio_input.stopped:
             continue
         self.display.master.deiconify()
         self.stop()
 
     def stop(self):
+        """Stop all output streams"""
         self.audio_input.stop()
         self.video_input.stop()
         if self.video_thread and self.audio_thread:
