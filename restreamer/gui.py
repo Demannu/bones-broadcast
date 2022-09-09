@@ -4,6 +4,7 @@ from tkinter.ttk import Button, Combobox
 import cv2
 from .video_stream import VideoStream
 from .audio_stream import AudioStream
+from .capture_device import CaptureDevices
 
 
 class GUI:
@@ -36,14 +37,20 @@ class GUI:
         self.display.grid()
 
         # Video Input Device Configuration
-        self.video_input_devices = ["Run auto detect"]
-        vid_variable = StringVar(self.display)
+        self.video_input_devices = []
 
-        vid_combobox = Combobox(self.display, values=self.video_input_devices).pack()
+        self.vid_combobox = Combobox(self.display, values=self.video_input_devices)
+        self.vid_combobox.pack()
+
+        # Auto-detect: Input devices
+        auto_input_devices = Button(
+            self.display,
+            text="Refresh device list",
+            command=self.auto_detect_video_devices,
+        ).pack()
 
         # Video Resolution Configuration
         self.video_resolutions = []
-        vr_variable = StringVar(self.display)
 
         self.vr_combobox: Combobox = Combobox(
             self.display, values=self.video_resolutions
@@ -64,23 +71,34 @@ class GUI:
         self.video_thread = None
         self.audio_thread = None
 
+        # Auto-run: Populate video devices
+        self.auto_detect_video_devices()
+
         self.root.mainloop()
 
     def auto_detect_video_resolutions(self):
+        self.video_input.stream.resolutions = []
         self.video_input.stream.get_compatible_resolutions()
-        self.video_resolutions = self.video_input.stream.resolutions
-        print(self.video_resolutions)
-        self.vr_combobox.values = self.video_resolutions
-        self.vr_combobox.destroy()
-        self.vr_combobox = Combobox(self.display, values=self.video_resolutions)
-        self.vr_combobox.pack()
+        self.video_resolutions = [
+            f"{x[0]} x {x[1]}" for x in self.video_input.stream.resolutions
+        ]
+        self.video_resolutions.append("Select value from list")
+        self.vr_combobox["values"] = self.video_resolutions
+        self.vr_combobox.set(self.video_resolutions[-1])
+        self.vr_combobox.bind("<<ComboboxSelected>>", self.video_input.set_resolution)
+
+    def auto_detect_video_devices(self):
+        devices = CaptureDevices().find_devices()
+        self.vid_combobox["values"] = devices
+        self.vid_combobox.set(devices[-1])
+        self.vid_combobox.bind("<<ComboboxSelected>>", self.video_input.set_device)
 
     def raw_video(self):
         """Stream the raw output to a cv2 window"""
         self.display.master.withdraw()
         self.audio_thread: Thread = Thread(target=self.audio_input.start).start()
         self.video_thread: Thread = Thread(target=self.video_input.start).start()
-        while not self.video_input.stopped or not self.audio_input.stopped:
+        while not self.video_input.stopped:
             continue
         self.display.master.deiconify()
         self.stop()

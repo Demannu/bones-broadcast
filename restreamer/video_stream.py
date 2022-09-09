@@ -20,9 +20,10 @@ class VideoStream:  # pylint: disable=too-many-arguments
 
         # Setup video capture with DirectShow
         self.stream = CaptureDevice(src=src)
-        self.stream.set_resolution(output_w, output_h)
-        self.stream.set_fps(output_fps)
-        self.stream.set_codec()
+        self.output_w = output_w
+        self.output_h = output_h
+        self.output_fps = output_fps
+        self.setup()
 
         # Start FPS counter
         self.fps = FPS()
@@ -36,6 +37,7 @@ class VideoStream:  # pylint: disable=too-many-arguments
     def start(self):
         """Start the capture loop"""
         self.stopped = False
+        print(self.frame)
         self.loop()
 
     def stop(self):
@@ -44,12 +46,37 @@ class VideoStream:  # pylint: disable=too-many-arguments
         self.stopped = True
         cv2.destroyAllWindows()
 
+    def setup(self):
+        self.stream.set_resolution(self.output_w, self.output_h)
+        self.stream.set_fps(self.output_fps)
+        self.stream.set_codec()
+
+    def set_resolution(self, resolution):
+        w, h = resolution.widget.get().split(" x ")
+        self.output_w = int(w)
+        self.output_h = int(h)
+        self.stream = CaptureDevice(
+            self.src, self.output_fps, self.output_w, self.output_h
+        )
+        self.setup()
+
+    def set_device(self, video_src):
+        video_src.widget.get()
+        self.src = video_src.widget.current()
+        self.stream = CaptureDevice(self.src)
+        self.setup()
+        self.grabbed, self.frame = self.stream.cap.read()
+
+    def hard_stop(self, msg):
+        print(f"[HARD STOP] {msg}")
+
     def loop(self):
         """Render loop; fetch from device; output to window"""
         while not self.stopped:
             (self.grabbed, self.frame) = self.stream.cap.read()
             self.frame = self.fps.render_fps(self.frame)
             cv2.imshow(self.device_name, self.frame)
+
             if (cv2.waitKey(1) & 0xFF == ord("q")) or cv2.getWindowProperty(
                 self.device_name, cv2.WND_PROP_VISIBLE
             ) < 1:

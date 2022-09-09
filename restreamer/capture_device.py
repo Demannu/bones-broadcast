@@ -1,10 +1,23 @@
+from typing import List
 import cv2
-from threading import Thread
 import pandas as pd
+from pygrabber.dshow_graph import FilterGraph
+
+
+class CaptureDevices:
+    def __init__(self) -> None:
+        self.devices = []
+        self.graph = FilterGraph()
+
+    def find_devices(self):
+        self.devices = self.graph.get_input_devices()
+        return self.devices
 
 
 class CaptureDevice:  # pylint: disable=too-many-instance-attributes, invalid-name
     """Class for the capture interface"""
+
+    # TODO Need to be able to instantiate without a src present
 
     def __init__(
         self,
@@ -41,6 +54,8 @@ class CaptureDevice:  # pylint: disable=too-many-instance-attributes, invalid-na
         def gcd(a, b):
             return a if b == 0 else gcd(b, a % b)
 
+        print(w)
+        print(h)
         factor = gcd(w, h)
         x = int(w / factor)
         y = int(h / factor)
@@ -68,10 +83,6 @@ class CaptureDevice:  # pylint: disable=too-many-instance-attributes, invalid-na
         if w == width and h == height:
             self.resolutions.append([w, h])
 
-    def auto_detect(self):
-        """Run the resolution detection function in a thread"""
-        Thread(target=self.get_compatible_resolutions)
-
     def get_compatible_resolutions(self):
         """Return a list of compatible resolutions"""
 
@@ -80,12 +91,12 @@ class CaptureDevice:  # pylint: disable=too-many-instance-attributes, invalid-na
             [row["W"], row["H"], row["Display"]]
             for key, row in common_res[["W", "H", "Display"]].iterrows()
         ]
-
         self.check_resolution(data[0][0], data[0][1])
-        self.calculate_aspect_ratio(self.lowest_width, self.lowest_height)
-
+        if self.lowest_width > 0 and self.lowest_height > 0:
+            self.calculate_aspect_ratio(self.lowest_width, self.lowest_height)
         self.check_resolution(data[-1][0], data[-1][0])
-        self.calculate_aspect_ratio(self.highest_width, self.highest_height)
+        if self.highest_width > 0 and self.highest_height > 0:
+            self.calculate_aspect_ratio(self.highest_width, self.highest_height)
 
         data = [
             [row[0], row[1]]
@@ -93,6 +104,7 @@ class CaptureDevice:  # pylint: disable=too-many-instance-attributes, invalid-na
             if row[2].replace("∶", ":") in self.aspect_ratio
             and (row[0] >= self.lowest_width and row[0] <= self.highest_width)
             and (row[1] >= self.lowest_height and row[1] <= self.highest_height)
+            and (row[0] > 0 and row[1] > 0)
         ]
 
         for row in data:
